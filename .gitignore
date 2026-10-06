@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+*.keystore
+*.jks
+*.p12
+android/app/build/
+android/.gradle/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
