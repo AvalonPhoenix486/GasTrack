@@ -1,0 +1,16 @@
+# Regeneraveis
+node_modules/
+__pycache__/
+*.pyc
+dist/
+build/
+coverage/
+*.log
+
+# Segredos (nunca versionar)
+.env
+.env.*
+*.keystore
+*.jks
+*.p12
+local.properties
