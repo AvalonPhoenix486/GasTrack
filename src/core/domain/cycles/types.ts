@@ -35,11 +35,11 @@ export interface NewCycle {
 
 /**
  * Alteracoes permitidas em um ciclo. `undefined` = nao muda.
- * Nao e possivel mudar o id. Dar endDate a um ciclo aberto o fecha.
+ * Nao e possivel mudar o id. Dar endDate a um ciclo aberto o fecha; endDate: null reabre (PD-002).
  */
 export interface CycleChanges {
   readonly startDate?: string;
-  readonly endDate?: string;
+  readonly endDate?: string | null;
 }
 
 /**

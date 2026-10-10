@@ -10,7 +10,7 @@ const sources = readdirSync(dir).filter((f: string) => f.endsWith('.ts') && !f.e
 const strip = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
 test('arquivos do modulo de ciclos', () => {
-  assert.deepEqual([...sources].sort(), ['cycle.ts', 'errors.ts', 'factory.ts', 'history.ts', 'index.ts', 'order.ts', 'types.ts', 'validate.ts']);
+  assert.deepEqual([...sources].sort(), ['cycle.ts', 'errors.ts', 'factory.ts', 'history.ts', 'index.ts', 'order.ts', 'overlap.ts', 'types.ts', 'validate.ts']);
 });
 
 test('nao usa relogio, Date, Intl, ambiente, aleatoriedade, rede, DOM, armazenamento nem node:*', () => {

@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { calendarDuration, InvalidDateError, InvalidDateRangeError } from '../dates/index.ts';
 import {
-  createCycle, closeCycle, editCycle, cycleDuration, isOpen, isClosed, cycleStatus,
+  createCycle, closeCycle, reopenCycle, editCycle, cycleDuration, isOpen, isClosed, cycleStatus,
   InvalidCycleError, CycleStateError, MissingReferenceDateError,
 } from './index.ts';
 import type { Cycle } from './index.ts';
@@ -273,9 +273,18 @@ describe('edicao', () => {
     assert.throws(() => editCycle(closed(), [] as never), InvalidCycleError);
   });
 
-  test('reabrir (endDate: null) nao e suportado: decisao pendente PD-002', () => {
-    assert.throws(() => editCycle(closed(), { endDate: null } as never), CycleStateError);
-    assert.throws(() => editCycle(makeOpen('c1', '2026-10-05'), { endDate: null } as never), CycleStateError);
+  test('reabrir via edicao (endDate: null) preserva id e inicio (PD-002)', () => {
+    const reopened = editCycle(closed(), { endDate: null });
+    assert.deepEqual(reopened, { id: 'c1', startDate: '2026-10-05', endDate: null });
+    assert.equal(isOpen(reopened), true);
+  });
+
+  test('reopenCycle: reabre fechado; ja aberto e rejeitado; original intacto (PD-002)', () => {
+    const original = closed();
+    const reopened = reopenCycle(original);
+    assert.deepEqual(reopened, { id: 'c1', startDate: '2026-10-05', endDate: null });
+    assert.deepEqual(original, { id: 'c1', startDate: '2026-10-05', endDate: '2027-01-15' });
+    assert.throws(() => reopenCycle(makeOpen('c1', '2026-10-05') as never), CycleStateError);
   });
 
   test('edicao e atomica e nao altera o ciclo original', () => {

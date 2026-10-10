@@ -48,6 +48,18 @@ export function closeCycle(cycle: OpenCycle, endDate: string): ClosedCycle {
 }
 
 /**
+ * Reabre um ciclo fechado (PD-002): mesmo id e mesmo inicio, sem data de fim.
+ * Lanca CycleStateError se o ciclo ja estiver aberto. A verificacao de
+ * sobreposicao/segundo ciclo aberto e feita por reopenInHistory.
+ */
+export function reopenCycle(cycle: ClosedCycle): OpenCycle {
+  if (cycle.endDate === null) {
+    throw new CycleStateError(`o ciclo ${cycle.id} ja esta aberto`);
+  }
+  return makeCycle(cycle.id, cycle.startDate, null) as OpenCycle;
+}
+
+/**
  * Duracao do ciclo, exatamente a do dominio de datas (calendarDuration):
  *  - ciclo fechado: de startDate a endDate; `referenceDate` e ignorada;
  *  - ciclo aberto: de startDate ate `referenceDate`, que o CHAMADOR informa
@@ -68,8 +80,10 @@ export function cycleDuration(cycle: Cycle, referenceDate?: string): CalendarDur
  * invalido, lanca erro e nada muda.
  *  - startDate: novo inicio;
  *  - endDate: novo fim; num ciclo aberto, o fecha.
- * Nao e possivel reabrir um ciclo (endDate: null lanca CycleStateError):
- * decisao de produto pendente PD-002. Campos desconhecidos lancam InvalidCycleError.
+ *  - endDate: null: reabre um ciclo fechado (PD-002), preservando o id. A
+ *    integridade do HISTORICO (sobreposicao, segundo aberto) e verificada em
+ *    updateInHistory/reopenInHistory, nao aqui.
+ * Campos desconhecidos lancam InvalidCycleError.
  */
 export function editCycle(cycle: Cycle, changes: CycleChanges): Cycle {
   if (typeof changes !== 'object' || changes === null || Array.isArray(changes)) {
@@ -81,13 +95,10 @@ export function editCycle(cycle: Cycle, changes: CycleChanges): Cycle {
     }
   }
   const raw = changes as { startDate?: unknown; endDate?: unknown };
-  if (raw.endDate === null) {
-    throw new CycleStateError('reabrir um ciclo fechado nao e suportado (decisao pendente PD-002)');
-  }
   if (raw.startDate !== undefined) parseDate(raw.startDate);
-  if (raw.endDate !== undefined) parseDate(raw.endDate);
+  if (raw.endDate !== undefined && raw.endDate !== null) parseDate(raw.endDate);
   const startDate = (raw.startDate as string | undefined) ?? cycle.startDate;
-  const endDate = (raw.endDate as string | undefined) ?? cycle.endDate;
+  const endDate = raw.endDate === null ? null : ((raw.endDate as string | undefined) ?? cycle.endDate);
   if (endDate !== null && daysBetween(startDate, endDate) < 0) {
     throw new InvalidDateRangeError(startDate, endDate);
   }

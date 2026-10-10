@@ -73,3 +73,17 @@ export class MissingReferenceDateError extends Error {
     this.cycleId = cycleId;
   }
 }
+
+/** Dois ciclos do historico se sobrepoem (PD-001). Ciclos adjacentes sao permitidos. */
+export class CycleOverlapError extends Error {
+  readonly code = 'CYCLE_OVERLAP';
+  readonly firstId: string;
+  readonly secondId: string;
+
+  constructor(firstId: string, secondId: string) {
+    super(`Os ciclos ${firstId} e ${secondId} se sobrepoem; ciclos nao podem compartilhar dias.`);
+    this.name = 'CycleOverlapError';
+    this.firstId = firstId;
+    this.secondId = secondId;
+  }
+}
