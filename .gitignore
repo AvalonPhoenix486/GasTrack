@@ -1,4 +1,4 @@
-﻿# Dependencias e arquivos regeneraveis
+# Dependencias e arquivos regeneraveis
 node_modules/
 __pycache__/
 *.pyc
