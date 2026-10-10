@@ -5,6 +5,7 @@
  * igual ao inicio do outro: adjacentes), mas nao podem compartilhar dias alem
  * dessa data-fronteira. Formalmente: sobrepoem-se quando
  *   a.inicio < b.fim  E  b.inicio < a.fim   (fim de ciclo aberto = infinito).
+ * Excecao (R5): dois ciclos de zero dia na mesma data tambem conflitam.
  * Consequencia: um ciclo aberto so e valido depois de todos os fechados.
  * Funcoes puras; usa apenas o dominio de datas.
  */
@@ -17,7 +18,15 @@ function startsBefore(start: string, end: string | null): boolean {
   return end === null || compareDates(start, end) < 0;
 }
 
+/** Ciclo fechado com inicio e fim na mesma data (valido individualmente). */
+function isZeroDay(c: Cycle): boolean {
+  return c.endDate !== null && c.endDate === c.startDate;
+}
+
 export function cyclesOverlap(a: Cycle, b: Cycle): boolean {
+  // R5: dois ciclos de zero dia na MESMA data sao conflito de historico
+  // (a formula abaixo os trataria como adjacentes).
+  if (isZeroDay(a) && isZeroDay(b) && a.startDate === b.startDate) return true;
   return startsBefore(a.startDate, b.endDate) && startsBefore(b.startDate, a.endDate);
 }
 

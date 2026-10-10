@@ -10,7 +10,7 @@ import {
   InvalidCycleError,
 } from './index.ts';
 import type { CycleHistory } from './index.ts';
-import { makeClosed, makeOpen } from './test-support.ts';
+import { makeClosed, makeOpen, prng, randInt } from './test-support.ts';
 
 const snap = (h: CycleHistory) => JSON.stringify(h);
 const ids = (h: CycleHistory) => listCycles(h).map((c) => c.id);
@@ -273,5 +273,134 @@ describe('add, delete, ordem e isolamento', () => {
     const h = addToHistory(emptyHistory(), makeClosed('a', '2026-01-01', '2026-01-31'));
     assert.deepEqual(ids(addToHistory(h, makeClosed('z', '2026-01-31', '2026-01-31'))), ['a', 'z']);
     assert.throws(() => addToHistory(h, makeClosed('z', '2026-01-15', '2026-01-15')), CycleOverlapError);
+  });
+});
+
+// TESTES RECRIADOS na etapa R5: unicidade de ciclos de zero dia na mesma data.
+describe('R5: ciclos de zero dia', () => {
+  const z = (id: string, d: string) => makeClosed(id, d, d);
+
+  test('um ciclo de zero dia continua valido individualmente', () => {
+    const h = addToHistory(emptyHistory(), z('z1', '2026-05-10'));
+    assert.deepEqual(findCycle(h, 'z1'), { id: 'z1', startDate: '2026-05-10', endDate: '2026-05-10' });
+    assert.deepEqual(listCycles(historyFromCycles([{ id: 'z1', startDate: '2026-05-10', endDate: '2026-05-10' }])).length, 1);
+  });
+
+  test('dois de zero dia na mesma data (ids diferentes) sao rejeitados, nas duas ordens', () => {
+    const h1 = addToHistory(emptyHistory(), z('z1', '2026-05-10'));
+    const before1 = snap(h1);
+    assert.throws(() => addToHistory(h1, z('z2', '2026-05-10')), CycleOverlapError);
+    assert.equal(snap(h1), before1);
+    const h2 = addToHistory(emptyHistory(), z('z2', '2026-05-10'));
+    assert.throws(() => addToHistory(h2, z('z1', '2026-05-10')), CycleOverlapError);
+    const recs = [
+      { id: 'z1', startDate: '2026-05-10', endDate: '2026-05-10' },
+      { id: 'z2', startDate: '2026-05-10', endDate: '2026-05-10' },
+    ];
+    assert.throws(() => historyFromCycles(recs), CycleOverlapError);
+    assert.throws(() => historyFromCycles([...recs].reverse()), CycleOverlapError);
+    assert.equal(cyclesOverlap(z('a', '2026-05-10'), z('b', '2026-05-10')), true);
+  });
+
+  test('independe da posicao: com outros ciclos no historico', () => {
+    let h = addToHistory(emptyHistory(), makeClosed('a', '2026-05-01', '2026-05-10'));
+    h = addToHistory(h, z('z1', '2026-05-10')); // zero dia na fronteira de a: adjacente, valido
+    h = addToHistory(h, makeClosed('b', '2026-05-10', '2026-05-20')); // adjacente a z1 e a a
+    assert.deepEqual(ids(h), ['a', 'z1', 'b']);
+    const before = snap(h);
+    assert.throws(() => addToHistory(h, z('z2', '2026-05-10')), CycleOverlapError);
+    assert.equal(snap(h), before);
+  });
+
+  test('dois de zero dia em datas diferentes sao aceitos, em qualquer ordem', () => {
+    const a = z('z1', '2026-05-10');
+    const b = z('z2', '2026-05-11');
+    assert.deepEqual(ids(addToHistory(addToHistory(emptyHistory(), a), b)), ['z1', 'z2']);
+    assert.deepEqual(ids(addToHistory(addToHistory(emptyHistory(), b), a)), ['z1', 'z2']);
+  });
+
+  test('zero dia estritamente dentro de outro ciclo continua rejeitado, em ambas as ordens', () => {
+    const wide = makeClosed('w', '2026-05-01', '2026-05-20');
+    const inner = z('z1', '2026-05-10');
+    assert.throws(() => addToHistory(addToHistory(emptyHistory(), wide), inner), CycleOverlapError);
+    assert.throws(() => addToHistory(addToHistory(emptyHistory(), inner), wide), CycleOverlapError);
+    assert.throws(() => historyFromCycles([wide, inner]), CycleOverlapError);
+    assert.throws(() => historyFromCycles([inner, wide]), CycleOverlapError);
+    // dentro de um ciclo aberto tambem
+    assert.throws(() => addToHistory(addToHistory(emptyHistory(), makeOpen('o', '2026-05-01')), z('z1', '2026-05-10')), CycleOverlapError);
+  });
+
+  test('adjacentes continuam validos (fim de um = inicio do outro)', () => {
+    const h = addToHistory(addToHistory(emptyHistory(), makeClosed('a', '2026-05-01', '2026-05-10')), makeClosed('b', '2026-05-10', '2026-05-20'));
+    assert.deepEqual(ids(h), ['a', 'b']);
+  });
+
+  test('lacunas continuam aceitas', () => {
+    const h = addToHistory(addToHistory(emptyHistory(), makeClosed('a', '2026-05-01', '2026-05-10')), makeClosed('b', '2026-06-01', '2026-06-10'));
+    assert.deepEqual(ids(h), ['a', 'b']);
+  });
+
+  test('edicao que produz duplicacao e rejeitada; historico intacto', () => {
+    let h = addToHistory(emptyHistory(), z('z1', '2026-05-10'));
+    h = addToHistory(h, makeClosed('b', '2026-05-11', '2026-05-20'));
+    const before = snap(h);
+    // b -> [05-10, 05-10] duplicaria z1
+    assert.throws(() => updateInHistory(h, 'b', { startDate: '2026-05-10', endDate: '2026-05-10' }), CycleOverlapError);
+    // z1 editado para a mesma data de outro zero dia
+    const h2 = addToHistory(h, z('z3', '2026-05-30'));
+    const before2 = snap(h2);
+    assert.throws(() => updateInHistory(h2, 'z3', { startDate: '2026-05-10', endDate: '2026-05-10' }), CycleOverlapError);
+    assert.equal(snap(h), before);
+    assert.equal(snap(h2), before2);
+    // edicao valida de zero dia para outra data livre
+    const ok = updateInHistory(h2, 'z3', { startDate: '2026-06-01', endDate: '2026-06-01' });
+    assert.deepEqual(findCycle(ok, 'z3'), { id: 'z3', startDate: '2026-06-01', endDate: '2026-06-01' });
+  });
+
+  test('fechar um aberto no mesmo dia de inicio, havendo zero dia nessa data, e rejeitado', () => {
+    let h = addToHistory(emptyHistory(), z('z1', '2026-05-10'));
+    h = addToHistory(h, makeOpen('o', '2026-05-10')); // adjacente ao zero dia: valido
+    const before = snap(h);
+    assert.throws(() => closeInHistory(h, 'o', '2026-05-10'), CycleOverlapError);
+    assert.equal(snap(h), before);
+    assert.equal(findCycle(closeInHistory(h, 'o', '2026-05-11'), 'o')?.endDate, '2026-05-11');
+  });
+
+  test('reabertura nao produz duplicacao de zero dia (reabrir zero dia ao lado de aberto e outras regras)', () => {
+    const h = addToHistory(emptyHistory(), z('z1', '2026-05-10'));
+    const r = reopenInHistory(h, 'z1'); // vira aberto desde 05-10: valido
+    assert.deepEqual(findCycle(r, 'z1'), { id: 'z1', startDate: '2026-05-10', endDate: null });
+    // fechar de novo no mesmo dia com outro zero dia ja presente na data: rejeitado
+    const h2 = addToHistory(r, makeClosed('b', '2026-05-01', '2026-05-10'));
+    const closedSame = closeInHistory(h2, 'z1', '2026-05-10');
+    assert.deepEqual(ids(closedSame), ['b', 'z1']);
+    // com outro zero dia na mesma data, a reabertura/fechamento nunca deixa duplicar
+    const h3 = addToHistory(emptyHistory(), z('zA', '2026-05-10'));
+    assert.throws(() => addToHistory(h3, z('zB', '2026-05-10')), CycleOverlapError);
+    const before = snap(h3);
+    assert.throws(() => reopenInHistory(h3, 'zX'), CycleNotFoundError);
+    assert.equal(snap(h3), before);
+  });
+
+  test('invariante central: nenhuma sequencia aleatoria produz dois zero dia na mesma data', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const rnd = prng(seed);
+      let h = emptyHistory();
+      let n = 0;
+      for (let step = 0; step < 60; step++) {
+        const d = `2026-05-${String(randInt(rnd, 1, 6)).padStart(2, '0')}`;
+        const list = listCycles(h);
+        const pick = list.length ? (list[randInt(rnd, 0, list.length - 1)] as { id: string }).id : 'nenhum';
+        try {
+          const op = randInt(rnd, 0, 3);
+          if (op === 0) h = addToHistory(h, makeClosed(`c${n++}`, d, d));
+          else if (op === 1) h = updateInHistory(h, pick, { startDate: d, endDate: d });
+          else if (op === 2) h = closeInHistory(h, pick, d);
+          else h = reopenInHistory(h, pick);
+        } catch { /* rejeicao esperada */ }
+        const zeros = listCycles(h).filter((c) => c.endDate === c.startDate).map((c) => c.startDate);
+        assert.equal(new Set(zeros).size, zeros.length, `seed ${seed} passo ${step}`);
+      }
+    }
   });
 });
