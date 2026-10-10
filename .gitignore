@@ -1,4 +1,4 @@
-# Regeneraveis
+﻿# Dependencias e arquivos regeneraveis
 node_modules/
 __pycache__/
 *.pyc
@@ -7,10 +7,22 @@ build/
 coverage/
 *.log
 
-# Segredos (nunca versionar)
+# Segredos e configuracoes locais
 .env
 .env.*
 *.keystore
 *.jks
 *.p12
 local.properties
+
+# Android
+android/app/build/
+android/.gradle/
+
+# IDEs
+.idea/
+.vscode/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
