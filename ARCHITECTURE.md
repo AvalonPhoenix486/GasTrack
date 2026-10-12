@@ -4,6 +4,13 @@
 
 Arquitetura provisoria. Deve ser validada tecnicamente antes da implementacao completa.
 
+## Estado real da implementacao (R7, 2026-10-10)
+
+- Existe: `src/core/domain/dates` e `src/core/domain/cycles` (TypeScript puro, sem dependencias de runtime; testes com `node --test`).
+- Nao existe: `statistics`, `data`, `notifications`, `ui`, `app`, Capacitor, Android, GitHub Actions.
+- O campo conceitual `status` do modelo e DERIVADO de `endDate` (null = aberto), ver D016. Ids sao fornecidos por quem chama (D017). Historico imutavel, sem sobreposicao (D019), reabertura permitida (D020), dois ciclos de zero dia na mesma data sao conflito (D021).
+- A arquitetura abaixo continua provisoria; a stack Android nunca foi compilada nem testada.
+
 ## Direcao inicial
 
 Hipotese atual:

@@ -1,7 +1,7 @@
 # GasTrack
 
 ## Status
-Projeto em fase de preparacao tecnica.
+Aplicativo em desenvolvimento, em fase de dominio. Existem (e estao testados) apenas os modulos de dominio `dates` e `cycles`, em TypeScript puro. NAO existem estatisticas, previsao, persistencia, interface, notificacoes, Capacitor, Android nem APK. Marco atual: recuperacao e integracao no GitHub (tag `checkpoint-recovery-integrated-2026-10-10`, commit `8a66b593e086380c9adc5f4cfe61a176391a16bb`); ele nao indica aplicativo concluido. Detalhes e testes: CHECKPOINT.md.
 
 ## Objetivo
 Criar um aplicativo Android simples para registrar ciclos de uso de botijao de gas, entender o historico de consumo e estimar quando uma nova troca provavelmente se aproxima.
