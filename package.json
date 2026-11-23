@@ -1,13 +1,14 @@
-{
-  "name": "gastrack",
-  "private": true,
   "version": "0.0.0",
   "type": "module",
   "description": "GasTrack (codinome). Etapa 1a: dominio de datas. Sem dependencias.",
-  "engines": { "node": ">=22.22.0" },
+  "engines": {
+    "node": ">=22.22.0"
+  },
   "scripts": {
     "test": "node --test \"src/**/*.test.ts\"",
     "test:tz": "node scripts/test-tz.mjs",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "build:web": "tsc -p tsconfig.web.json",
+    "test:e2e": "npm run build:web && python3 e2e/app.e2e.py"
   }
 }
