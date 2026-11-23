@@ -35,3 +35,15 @@ export class InvalidDateRangeError extends Error {
     this.end = end;
   }
 }
+
+/** Lancado quando a quantidade de dias a somar nao e um inteiro seguro. */
+export class InvalidDayCountError extends Error {
+  readonly code = 'INVALID_DAY_COUNT';
+  readonly input: unknown;
+
+  constructor(input: unknown) {
+    super(`Quantidade de dias invalida (precisa ser um numero inteiro): ${describe(input)}`);
+    this.name = 'InvalidDayCountError';
+    this.input = input;
+  }
+}
