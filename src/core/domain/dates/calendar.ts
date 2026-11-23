@@ -6,7 +6,7 @@
  * gregoriano). Por isso o resultado nao pode depender do fuso do processo
  * nem de horario de verao.
  */
-import { InvalidDateError } from './errors.ts';
+import { InvalidDateError, InvalidDayCountError } from './errors.ts';
 
 /** Componentes de uma data de calendario. month: 1-12; day: 1-31. */
 export interface CalendarDate {
@@ -98,4 +98,42 @@ export function compareDates(a: string, b: string): -1 | 0 | 1 {
  */
 export function daysBetween(start: string, end: string): number {
   return toEpochDay(parseDate(end)) - toEpochDay(parseDate(start));
+}
+
+/**
+ * Inverso de `toEpochDay`: componentes da data que fica `epochDay` dias depois de
+ * 1970-01-01 (negativo antes). Inteiros puros, sem Date ("civil from days").
+ */
+function fromEpochDay(epochDay: number): CalendarDate {
+  const z = epochDay + 719468;
+  const era = Math.floor(z / 146097);
+  const dayOfEra = z - era * 146097;
+  const yearOfEra = Math.floor(
+    (dayOfEra - Math.floor(dayOfEra / 1460) + Math.floor(dayOfEra / 36524) - Math.floor(dayOfEra / 146096)) / 365,
+  );
+  const dayOfYear = dayOfEra - (365 * yearOfEra + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100));
+  const shiftedMonth = Math.floor((5 * dayOfYear + 2) / 153);
+  const day = dayOfYear - Math.floor((153 * shiftedMonth + 2) / 5) + 1;
+  const month = shiftedMonth < 10 ? shiftedMonth + 3 : shiftedMonth - 9;
+  const year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0);
+  return { year, month, day };
+}
+
+const FIRST_EPOCH_DAY = toEpochDay({ year: MIN_YEAR, month: 1, day: 1 });
+const LAST_EPOCH_DAY = toEpochDay({ year: MAX_YEAR, month: 12, day: 31 });
+
+/**
+ * Data que fica `days` dias depois de `date` (negativo = antes; 0 = a mesma data).
+ * Inverso de `daysBetween`: daysBetween(date, addDays(date, n)) === n.
+ * Lanca InvalidDateError se `date` for invalida ou se o resultado sair de
+ * 0001-01-01..9999-12-31, e InvalidDayCountError se `days` nao for inteiro.
+ */
+export function addDays(date: string, days: number): string {
+  const start = parseDate(date);
+  if (typeof days !== 'number' || !Number.isSafeInteger(days)) throw new InvalidDayCountError(days);
+  const target = toEpochDay(start) + days;
+  if (target < FIRST_EPOCH_DAY || target > LAST_EPOCH_DAY) {
+    throw new InvalidDateError(date, 'o resultado sai do intervalo 0001-01-01..9999-12-31');
+  }
+  return formatDate(fromEpochDay(target));
 }
