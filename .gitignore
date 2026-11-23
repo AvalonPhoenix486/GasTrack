@@ -1,28 +1,6 @@
-# Dependencias e arquivos regeneraveis
-node_modules/
-__pycache__/
-*.pyc
-dist/
-build/
-coverage/
-*.log
-
-# Segredos e configuracoes locais
-.env
-.env.*
-*.keystore
-*.jks
-*.p12
-local.properties
-
-# Android
-android/app/build/
-android/.gradle/
-
-# IDEs
-.idea/
-.vscode/
-
 # Sistema operacional
 .DS_Store
 Thumbs.db
+
+# Saida de compilacao da tela (tsc)
+www/js/
