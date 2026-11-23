@@ -68,7 +68,8 @@ async function start(): Promise<void> {
   bind({
     onStart: (date) => void act(() => controller.startCycle(date), 'Ciclo iniciado.'),
     onFinish: (date) => void act(() => controller.finishCycle(date), 'Ciclo encerrado.'),
-    onEdit: (id) => setUi({ editingId: id, deletingId: null }),+    onSaveEdit: (id, startDate, endDate) => {
+    onEdit: (id) => setUi({ editingId: id, deletingId: null }),
+    onSaveEdit: (id, startDate, endDate) => {
       const changes: CycleChanges = endDate === undefined ? { startDate } : { startDate, endDate };
       void act(() => controller.updateCycle(id, changes), 'Ciclo atualizado.');
     },
