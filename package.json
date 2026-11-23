@@ -1,6 +1,9 @@
-  "version": "0.0.0",
+{
+  "name": "gastrack",
+  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "GasTrack (codinome). Etapa 1a: dominio de datas. Sem dependencias.",
+  "description": "GasTrack: controle de ciclos de uso e previsão da próxima troca.",
   "engines": {
     "node": ">=22.22.0"
   },
@@ -9,6 +12,16 @@
     "test:tz": "node scripts/test-tz.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "build:web": "tsc -p tsconfig.web.json",
-    "test:e2e": "npm run build:web && python3 e2e/app.e2e.py"
+    "test:e2e": "npm run build:web && python3 e2e/app.e2e.py",
+    "cap:sync": "npm run build:web && cap sync android",
+    "cap:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.2",
+    "@capacitor/android": "8.6.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.2",
+    "typescript": "5.9.3"
   }
 }
