@@ -112,7 +112,7 @@ test('historico e previsao atualizam a cada passo (4 fechados + aberto)', async 
   assert.equal(screen.currentText, 'Em andamento desde 10 de maio de 2026');
   assert.equal(screen.forecast.kind, 'ok');
   assert.deepEqual(screen.historyRows.map((r) => r.durationText), ['31 dias', '30 dias', '29 dias', '29 dias']);
-  assert.deepEqual(screen.historyRows[0], { id: 'cycle-4', startDate: '2026-04-07', endDate: '2026-05-08', startText: '7 de abril de 2026', endText: '8 de maio de 2026', durationText: '31 dias' });
+  assert.deepEqual(screen.historyRows[0], { id: 'cycle-4', startDate: '2026-04-07', endDate: '2026-05-08', startText: '7 de abril de 2026', endText: '8 de maio de 2026', durationText: '31 dias', totalDays: 31 });
 });
 
 test('texto do ciclo aberto usa "1º"', () => {

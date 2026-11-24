@@ -1,19 +1,21 @@
-/** Ponto de entrada no navegador: liga repositorio, controlador e tela. */
+/** Ponto de entrada no navegador: liga repositorio, controlador, preferencias e tela. */
 import type { CycleChanges } from '../core/domain/cycles/index.ts';
 import { GasTrackController } from './controller.ts';
 import { LocalStorageCycleRepository } from './localStorageRepository.ts';
 import { localCivilDate } from './localDate.ts';
 import { describeError } from './messages.ts';
-import { bind, render, setBusy, showMessage, showNotice, showSuccess } from './render.ts';
-import type { UiState } from './render.ts';
+import { ThemeStore, THEME_LABELS, nextTheme } from './preferences.ts';
+import { bind, focusView, onBecameVisible, render, setBusy, showError, showNotice, showToast } from './render.ts';
+import type { Sheet, UiState } from './render.ts';
 import { buildScreen } from './screen.ts';
 
 const controller = new GasTrackController(
   new LocalStorageCycleRepository(() => window.localStorage),
   () => crypto.randomUUID(),
 );
+const themeStore = new ThemeStore(() => window.localStorage);
 
-let ui: UiState = { editingId: null, deletingId: null };
+let ui: UiState = { tab: 'home', sheet: null, sort: 'recent', theme: themeStore.load() };
 let busy = false;
 
 function refresh(): void {
@@ -27,57 +29,66 @@ function fail(error: unknown): void {
   const message = describeError(error);
   if (message === null) {
     console.error(error);
-    showMessage('Ocorreu um erro inesperado. Nada foi alterado.');
+    showError('Ocorreu um erro inesperado. Nada foi alterado.');
   } else {
-    showMessage(message);
+    showError(message);
   }
 }
 
 /**
- * Executa uma acao que muda dados. Sucesso: fecha editor/confirmacao, mostra a
- * mensagem de sucesso. Falha: mantem editor/confirmacao abertos e mostra o erro.
+ * Executa uma acao que muda dados. Sucesso: fecha o painel e mostra um aviso curto.
+ * Falha: o painel continua aberto, com o erro e o que o usuario digitou.
  */
 async function act(run: () => Promise<unknown>, success: string): Promise<void> {
   if (busy) return;
   busy = true;
-  showMessage(null);
-  showSuccess(null);
+  showError(null);
   setBusy(true);
+  let done = false;
   try {
     await run();
-    ui = { editingId: null, deletingId: null };
-    showSuccess(success);
+    ui = { ...ui, sheet: null };
+    done = true;
   } catch (error) {
     fail(error);
   } finally {
     busy = false;
-    setBusy(false);
     refresh();
+    setBusy(false);
   }
+  if (done) showToast(success);
 }
 
-function setUi(next: UiState): void {
+function openSheet(sheet: Exclude<Sheet, null>): void {
   if (busy) return;
-  showMessage(null);
-  showSuccess(null);
-  ui = next;
+  ui = { ...ui, sheet };
   refresh();
 }
 
 async function start(): Promise<void> {
   bind({
+    onTab: (tab) => { if (busy) return; ui = { ...ui, tab, sheet: null }; refresh(); focusView(); },
+    onOpenSheet: openSheet,
+    onCloseSheet: () => { if (busy) return; ui = { ...ui, sheet: null }; refresh(); },
     onStart: (date) => void act(() => controller.startCycle(date), 'Ciclo iniciado.'),
     onFinish: (date) => void act(() => controller.finishCycle(date), 'Ciclo encerrado.'),
-    onEdit: (id) => setUi({ editingId: id, deletingId: null }),
     onSaveEdit: (id, startDate, endDate) => {
       const changes: CycleChanges = endDate === undefined ? { startDate } : { startDate, endDate };
       void act(() => controller.updateCycle(id, changes), 'Ciclo atualizado.');
     },
-    onCancelEdit: () => setUi({ editingId: null, deletingId: null }),
-    onAskDelete: (id) => setUi({ editingId: null, deletingId: id }),
     onConfirmDelete: (id) => void act(() => controller.deleteCycle(id), 'Ciclo excluído.'),
-    onCancelDelete: () => setUi({ editingId: null, deletingId: null }),
+    onSort: (sort) => { ui = { ...ui, sort }; refresh(); },
+    onTheme: () => {
+      const theme = nextTheme(ui.theme);
+      ui = { ...ui, theme };
+      refresh();
+      if (themeStore.save(theme)) showToast(`Tema: ${THEME_LABELS[theme]}`);
+      else showToast('Não foi possível salvar a preferência de tema.', 'error');
+    },
   });
+  // Ao voltar ao app (ex.: WebView retomado no dia seguinte), recalcula "hoje" e os dias.
+  onBecameVisible(() => { if (!busy) refresh(); });
+
   try {
     const problem = await controller.load();
     if (problem?.kind === 'corrupt') {
@@ -88,7 +99,8 @@ async function start(): Promise<void> {
       showNotice('O armazenamento deste aparelho não está disponível. Os registros não serão guardados.');
     }
   } catch (error) {
-    fail(error);
+    console.error(error);
+    showNotice('Não foi possível carregar os dados salvos.');
   }
   refresh();
 }
