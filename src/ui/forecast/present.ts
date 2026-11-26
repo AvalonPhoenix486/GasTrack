@@ -10,43 +10,44 @@
 import { FLOOR_DAYS, forecastNextChange } from '../../core/domain/forecast/index.ts';
 import type { Forecast, OkForecast } from '../../core/domain/forecast/index.ts';
 import type { Cycle } from '../../core/domain/cycles/index.ts';
+import { DEFAULT_LOCALE } from '../locale.ts';
+import type { Locale } from '../locale.ts';
 import { formatClosedCycles, formatCycles, formatDateWindow, formatDays, formatLongDate, formatPercent } from './format.ts';
+import { forecastText } from './text.ts';
 import type { DetailRow, ForecastView, OkView } from './types.ts';
 
-function variabilityLines(f: OkForecast): readonly string[] {
-  if (f.floorApplied) {
-    const minimum = formatDays(FLOOR_DAYS);
-    return Object.freeze([
-      `A variabilidade observada foi inferior a ${minimum}. Por isso, foi aplicada a largura mínima de ${minimum} à janela estimada.`,
-    ]);
-  }
-  return Object.freeze([`Variação típica: cerca de ${formatDays(f.variability.madDays)}.`]);
+function variabilityLines(f: OkForecast, locale: Locale): readonly string[] {
+  const t = forecastText(locale);
+  if (f.floorApplied) return Object.freeze([t.floorApplied(formatDays(FLOOR_DAYS, locale))]);
+  return Object.freeze([t.typicalVariation(formatDays(f.variability.madDays, locale))]);
 }
 
-function details(f: OkForecast): readonly DetailRow[] {
+function details(f: OkForecast, locale: Locale): readonly DetailRow[] {
+  const t = forecastText(locale);
   const relative = f.variability.relativeMad;
   const rows: DetailRow[] = [
-    { label: 'Mediana', value: formatDays(f.medianDays) },
-    { label: 'MAD (desvio absoluto mediano)', value: formatDays(f.variability.madDays) },
-    { label: 'Meia-largura da janela', value: formatDays(f.halfWidthDays) },
-    { label: 'Variabilidade relativa', value: relative === null ? 'indisponível (mediana 0)' : formatPercent(relative) },
-    { label: 'Menor ciclo', value: formatDays(f.variability.minDays) },
-    { label: 'Maior ciclo', value: formatDays(f.variability.maxDays) },
-    { label: 'Amplitude', value: formatDays(f.variability.rangeDays) },
+    { label: t.labels.median, value: formatDays(f.medianDays, locale) },
+    { label: t.labels.mad, value: formatDays(f.variability.madDays, locale) },
+    { label: t.labels.halfWidth, value: formatDays(f.halfWidthDays, locale) },
+    { label: t.labels.relative, value: relative === null ? t.relativeUnavailable : formatPercent(relative, locale) },
+    { label: t.labels.shortest, value: formatDays(f.variability.minDays, locale) },
+    { label: t.labels.longest, value: formatDays(f.variability.maxDays, locale) },
+    { label: t.labels.range, value: formatDays(f.variability.rangeDays, locale) },
   ];
   return Object.freeze(rows.map((r) => Object.freeze(r)));
 }
 
-function presentOk(f: OkForecast): OkView {
+function presentOk(f: OkForecast, locale: Locale): OkView {
+  const t = forecastText(locale);
   return Object.freeze({
     kind: 'ok',
-    title: 'Próxima mudança estimada',
-    centralDate: formatLongDate(f.centralDate),
-    windowLine: `Janela estimada: ${formatDateWindow(f.windowStartDate, f.windowEndDate)}`,
-    variabilityLines: variabilityLines(f),
-    basisLine: `Baseado em ${formatClosedCycles(f.closedCount)}`,
-    detailsTitle: 'Detalhes técnicos',
-    details: details(f),
+    title: t.titleOk,
+    centralDate: formatLongDate(f.centralDate, locale),
+    windowLine: t.window(formatDateWindow(f.windowStartDate, f.windowEndDate, locale)),
+    variabilityLines: variabilityLines(f, locale),
+    basisLine: t.basis(formatClosedCycles(f.closedCount, locale)),
+    detailsTitle: t.detailsTitle,
+    details: details(f, locale),
   });
 }
 
@@ -54,25 +55,26 @@ function presentOk(f: OkForecast): OkView {
  * Textos para os tres estados normais da previsao. Lanca Error se receber um
  * estado desconhecido (nao deveria ocorrer com a API atual do dominio).
  */
-export function presentForecast(forecast: Forecast): ForecastView {
+export function presentForecast(forecast: Forecast, locale: Locale = DEFAULT_LOCALE): ForecastView {
+  const t = forecastText(locale);
   switch (forecast.status) {
     case 'insufficient-data':
       return Object.freeze({
         kind: 'insufficient-data',
-        title: 'Próxima mudança',
-        message: 'Ainda não há histórico suficiente para estimar a próxima mudança.',
-        historyLine: `Histórico: ${formatCycles(forecast.closedCount)}`,
-        requiredLine: `Necessário: ${formatCycles(forecast.requiredCount)}`,
+        title: t.title,
+        message: t.insufficientMessage,
+        historyLine: t.history(formatCycles(forecast.closedCount, locale)),
+        requiredLine: t.required(formatCycles(forecast.requiredCount, locale)),
       });
     case 'no-open-cycle':
       return Object.freeze({
         kind: 'no-open-cycle',
-        title: 'Próxima mudança',
-        message: 'Há histórico suficiente para fazer a estimativa, mas não existe um ciclo em andamento para aplicar a previsão.',
-        basisLine: `Baseado em ${formatClosedCycles(forecast.closedCount)}`,
+        title: t.title,
+        message: t.noOpenMessage,
+        basisLine: t.basis(formatClosedCycles(forecast.closedCount, locale)),
       });
     case 'ok':
-      return presentOk(forecast);
+      return presentOk(forecast, locale);
     default: {
       const unknown: never = forecast;
       throw new Error(`Estado de previsão desconhecido: ${JSON.stringify(unknown)}`);
@@ -85,6 +87,6 @@ export function presentForecast(forecast: Forecast): ForecastView {
  * Propaga os erros do dominio (entrada invalida, data fora de 0001-9999), que nao
  * sao estados normais da previsao.
  */
-export function presentNextChange(cycles: readonly Cycle[]): ForecastView {
-  return presentForecast(forecastNextChange(cycles));
+export function presentNextChange(cycles: readonly Cycle[], locale: Locale = DEFAULT_LOCALE): ForecastView {
+  return presentForecast(forecastNextChange(cycles), locale);
 }

@@ -10,7 +10,7 @@ const sources = readdirSync(dir).filter((f: string) => f.endsWith('.ts') && !f.e
 const strip = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
 test('arquivos da apresentacao', () => {
-  assert.deepEqual([...sources].sort(), ['format.ts', 'index.ts', 'present.ts', 'types.ts']);
+  assert.deepEqual([...sources].sort(), ['format.ts', 'index.ts', 'present.ts', 'text.ts', 'types.ts']);
 });
 
 test('nao usa Date, Intl, relogio, ambiente, aleatoriedade, rede, DOM, armazenamento nem node:*', () => {
@@ -30,7 +30,7 @@ test('imports: so a propria camada e as APIs publicas de forecast, cycles e date
   for (const f of sources) {
     const code = readFileSync(join(dir, f), 'utf8');
     const specs = [...code.matchAll(/(?:import|export)[^'"]*?from\s*['"]([^'"]+)['"]/g)].map((m) => m[1] as string);
-    for (const s of specs) assert.match(s, /^(\.\/[a-z-]+\.ts|\.\.\/\.\.\/core\/domain\/(forecast|cycles|dates)\/index\.ts)$/, `${f} importa ${s}`);
+    for (const s of specs) assert.match(s, /^(\.\/[a-z-]+\.ts|\.\.\/locale\.ts|\.\.\/\.\.\/core\/domain\/(forecast|cycles|dates)\/index\.ts)$/, `${f} importa ${s}`);
   }
 });
 

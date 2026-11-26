@@ -4,13 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#490038">
   <title>GasTrack</title>
+  <link rel="icon" type="image/png" href="brand/favicon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app" aria-busy="false">
     <header class="topbar" id="topbar">
-      <h1>GasTrack</h1>
+      <h1 class="brand" id="brand">GasTrack</h1>
       <button id="theme-button" class="icon-button" type="button"></button>
     </header>
     <p id="notice" class="banner banner-warn" role="status" hidden></p>
@@ -19,6 +21,7 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
   <div id="sheet-root"></div>
+  <div id="splash" class="splash" aria-hidden="true"></div>
   <script type="module" src="js/app/main.js"></script>
 </body>
 </html>

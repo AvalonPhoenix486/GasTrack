@@ -1,125 +1,45 @@
-/** Camada DOM: so exibe o modelo da tela e repassa os eventos. Sem regra de negocio. */
-import type { HistoryRow, Screen, ForecastUnavailable, HistorySort, StatsView } from './screen.ts';
-import { SORT_LABELS, sortRows } from './screen.ts';
-import type { ForecastView } from '../ui/forecast/index.ts';
-import { THEME_LABELS } from './preferences.ts';
-import type { ThemePreference } from './preferences.ts';
+/**
+ * Camada DOM: so exibe o modelo da tela e repassa os eventos. Sem regra de negocio.
+ * As telas ficam em ./view/*; aqui ficam a estrutura fixa (topo, abas, avisos, paineis) e a abertura.
+ */
+import { messagesFor } from './i18n/index.ts';
+import type { Locale, Messages } from './i18n/index.ts';
+import type { Screen } from './screen.ts';
+import { crystalOrnate, crystalSmall } from './view/brand.ts';
+import type { ViewContext } from './view/context.ts';
+import { el, h, icon } from './view/dom.ts';
+import type { IconName } from './view/dom.ts';
+import { forecastView } from './view/forecastTab.ts';
+import { historyView } from './view/history.ts';
+import { homeView } from './view/home.ts';
+import { sheetContent } from './view/sheets.ts';
+import { settingsView } from './view/settingsView.ts';
+import { statsView } from './view/stats.ts';
+import type { Extras, Handlers, Sheet, Tab, UiState } from './view/types.ts';
 
-export type Tab = 'home' | 'history' | 'stats' | 'forecast';
-export type Sheet =
-  | { readonly kind: 'start' }
-  | { readonly kind: 'finish' }
-  | { readonly kind: 'edit'; readonly id: string }
-  | { readonly kind: 'delete'; readonly id: string }
-  | null;
+export type { Extras, Handlers, SettingsPage, Sheet, Tab, UiState } from './view/types.ts';
 
-export interface UiState {
-  readonly tab: Tab;
-  readonly sheet: Sheet;
-  readonly sort: HistorySort;
-  readonly theme: ThemePreference;
-}
-
-export interface Handlers {
-  onTab(tab: Tab): void;
-  onOpenSheet(sheet: Exclude<Sheet, null>): void;
-  onCloseSheet(): void;
-  onStart(startDate: string): void;
-  onFinish(endDate: string): void;
-  /** `endDate` so e informado ao editar ciclo encerrado. */
-  onSaveEdit(id: string, startDate: string, endDate: string | undefined): void;
-  onConfirmDelete(id: string): void;
-  onSort(sort: HistorySort): void;
-  onTheme(): void;
-}
-
-const TABS: readonly { readonly id: Tab; readonly label: string; readonly icon: string }[] = [
-  { id: 'home', label: 'Início', icon: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
-  { id: 'history', label: 'Histórico', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2' },
-  { id: 'stats', label: 'Estatísticas', icon: 'M5 20V11M12 20V4M19 20v-6' },
-  { id: 'forecast', label: 'Previsão', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z' },
+const TABS: readonly { readonly id: Tab; readonly icon: IconName }[] = [
+  { id: 'home', icon: 'home' },
+  { id: 'history', icon: 'history' },
+  { id: 'stats', icon: 'stats' },
+  { id: 'forecast', icon: 'forecast' },
+  { id: 'settings', icon: 'settings' },
 ];
+
+const THEME_ICON = { system: 'auto', light: 'sun', dark: 'moon' } as const;
 
 let handlers: Handlers | null = null;
 let renderedSheetKey: string | null = null;
 let sheetOpener: HTMLElement | null = null;
 let toastTimer: number | undefined;
-
-// ---------- helpers de DOM ----------
-type Kid = Node | string | null | false | undefined;
-type Attrs = Record<string, string | boolean | undefined>;
-
-function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs | null, ...kids: Kid[]): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [name, value] of Object.entries(attrs ?? {})) {
-    if (value === undefined || value === false) continue;
-    if (name === 'class') node.className = String(value);
-    else node.setAttribute(name, value === true ? '' : value);
-  }
-  for (const kid of kids) {
-    if (kid === null || kid === false || kid === undefined) continue;
-    node.append(kid);
-  }
-  return node;
-}
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-function icon(path: string): SVGSVGElement {
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', '22');
-  svg.setAttribute('height', '22');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '2');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  svg.setAttribute('aria-hidden', 'true');
-  const p = document.createElementNS(SVG_NS, 'path');
-  p.setAttribute('d', path);
-  svg.append(p);
-  return svg;
-}
-
-/** Botijao estilizado e generico (ilustracao decorativa do estado vazio). */
-function cylinder(): SVGSVGElement {
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 64 80');
-  svg.setAttribute('width', '72');
-  svg.setAttribute('height', '90');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('class', 'cylinder');
-  const parts: [string, Record<string, string>][] = [
-    ['rect', { x: '14', y: '22', width: '36', height: '50', rx: '10' }],
-    ['rect', { x: '24', y: '8', width: '16', height: '12', rx: '3' }],
-    ['path', { d: 'M20 4h24', 'stroke-width': '4', 'stroke-linecap': 'round' }],
-    ['path', { d: 'M14 40h36M14 54h36', 'stroke-width': '2', opacity: '.5' }],
-  ];
-  for (const [tag, attrs] of parts) {
-    const el = document.createElementNS(SVG_NS, tag);
-    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-    svg.append(el);
-  }
-  return svg;
-}
-
-function el<T extends HTMLElement>(id: string): T {
-  const found = document.getElementById(id);
-  if (found === null) throw new Error(`Elemento #${id} ausente em index.html`);
-  return found as T;
-}
-
-function button(label: string, className: string, onClick: () => void, ariaLabel?: string): HTMLButtonElement {
-  const b = h('button', { type: 'button', class: className, 'aria-label': ariaLabel }, label);
-  b.addEventListener('click', onClick);
-  return b;
-}
+let lastViewKey: string | null = null;
+let brandDrawn = false;
 
 // ---------- ligacao e feedback ----------
 export function bind(h2: Handlers): void {
   handlers = h2;
-  el('theme-button').addEventListener('click', () => h2.onTheme());
+  el('theme-button').addEventListener('click', () => h2.onQuickTheme());
 }
 
 function setBox(id: string, message: string | null): void {
@@ -147,7 +67,7 @@ export function showError(message: string | null): void {
 
 export function showToast(message: string, kind: 'success' | 'error' = 'success'): void {
   const toast = el('toast');
-  toast.textContent = message;
+  toast.replaceChildren(icon(kind === 'error' ? 'alert' : 'checkCircle', 20), h('span', null, message));
   toast.dataset['kind'] = kind;
   toast.hidden = false;
   window.clearTimeout(toastTimer);
@@ -157,263 +77,114 @@ export function showToast(message: string, kind: 'success' | 'error' = 'success'
 /** Enquanto uma acao roda: desabilita os botoes e sinaliza aria-busy. */
 export function setBusy(busy: boolean): void {
   el('app').setAttribute('aria-busy', String(busy));
-  for (const b of document.querySelectorAll<HTMLButtonElement>('#app button, #sheet-root button')) b.disabled = busy;
-}
-
-// ---------- blocos de previsao ----------
-function disclaimer(): HTMLElement {
-  return h('p', { class: 'hint' }, 'A previsão é uma estimativa estatística, não uma garantia.');
-}
-
-function forecastCard(f: ForecastView | ForecastUnavailable, full: boolean): HTMLElement {
-  const card = h('section', { class: 'card forecast', 'data-kind': f.kind, 'aria-labelledby': full ? 'forecast-full-title' : 'forecast-title' });
-  const titleId = full ? 'forecast-full-title' : 'forecast-title';
-  switch (f.kind) {
-    case 'ok':
-      card.append(
-        h('h2', { class: 'eyebrow', id: titleId }, f.title),
-        h('p', { class: 'forecast-central' }, f.centralDate),
-        h('p', { class: 'forecast-window' }, f.windowLine),
-      );
-      if (full) {
-        for (const line of f.variabilityLines) card.append(h('p', { class: 'forecast-variability muted' }, line));
-      }
-      card.append(h('p', { class: 'forecast-basis muted' }, f.basisLine));
-      if (full) {
-        const details = h('details', { class: 'details', open: true }, h('summary', null, f.detailsTitle));
-        const list = h('dl', { class: 'detail-list' });
-        for (const row of f.details) list.append(h('div', null, h('dt', null, row.label), h('dd', null, row.value)));
-        details.append(list);
-        card.append(details);
-      }
-      break;
-    case 'insufficient-data':
-      card.append(
-        h('h2', { class: 'eyebrow', id: titleId }, f.title),
-        h('p', { class: 'forecast-message' }, f.message),
-        h('p', { class: 'muted' }, f.historyLine),
-        h('p', { class: 'muted' }, f.requiredLine),
-      );
-      break;
-    case 'no-open-cycle':
-      card.append(
-        h('h2', { class: 'eyebrow', id: titleId }, f.title),
-        h('p', { class: 'forecast-message' }, f.message),
-        h('p', { class: 'muted' }, f.basisLine),
-      );
-      break;
-    case 'unavailable':
-      card.append(h('h2', { class: 'eyebrow', id: titleId }, 'Próxima mudança'), h('p', { class: 'forecast-message' }, f.message));
-      break;
-  }
-  card.append(disclaimer());
-  return card;
-}
-
-// ---------- abas ----------
-function cycleActions(row: HistoryRow): HTMLElement {
-  const label = `ciclo de ${row.startText} a ${row.endText}`;
-  return h(
-    'div', { class: 'actions' },
-    button('Editar', 'secondary', () => handlers?.onOpenSheet({ kind: 'edit', id: row.id }), `Editar ${label}`),
-    button('Excluir', 'danger-outline', () => handlers?.onOpenSheet({ kind: 'delete', id: row.id }), `Excluir ${label}`),
-  );
-}
-
-function historyItem(row: HistoryRow): HTMLElement {
-  return h(
-    'li', { class: 'history-row', 'data-id': row.id },
-    h('div', { class: 'history-main' },
-      h('div', { class: 'history-dates' },
-        h('span', { class: 'history-start' }, row.startText),
-        h('span', { class: 'history-arrow', 'aria-hidden': 'true' }, ' → '),
-        h('span', { class: 'history-end' }, row.endText)),
-      h('strong', { class: 'history-duration' }, row.durationText)),
-    cycleActions(row),
-  );
-}
-
-function openCycleCard(screen: Screen): HTMLElement {
-  const open = screen.openCycle;
-  if (open === null) throw new Error('openCycleCard sem ciclo aberto');
-  const label = `ciclo em andamento desde ${open.startText}`;
-  return h(
-    'section', { class: 'card hero', 'aria-labelledby': 'hero-title' },
-    h('h2', { class: 'eyebrow', id: 'hero-title' }, 'Ciclo atual'),
-    open.daysValue === null
-      ? h('p', { class: 'hero-note' }, open.note ?? '')
-      : h('p', { class: 'hero-days' }, h('span', { class: 'hero-number' }, open.daysValue), ' ', h('span', { class: 'hero-unit' }, open.daysUnit)),
-    h('p', { class: 'hero-since' }, h('span', { class: 'muted' }, 'Em andamento desde'), h('strong', null, open.startText)),
-    h('div', { class: 'actions' },
-      button('Encerrar ciclo', 'primary', () => handlers?.onOpenSheet({ kind: 'finish' })),
-      button('Editar início', 'secondary', () => handlers?.onOpenSheet({ kind: 'edit', id: open.id }), `Editar ${label}`),
-      button('Excluir', 'danger-outline', () => handlers?.onOpenSheet({ kind: 'delete', id: open.id }), `Excluir ${label}`)),
-  );
-}
-
-function emptyCycleCard(): HTMLElement {
-  return h(
-    'section', { class: 'card hero hero-empty', 'aria-labelledby': 'hero-title' },
-    cylinder(),
-    h('h2', { class: 'eyebrow', id: 'hero-title' }, 'Ciclo atual'),
-    h('p', { class: 'hero-empty-text' }, 'Nenhum ciclo em andamento.'),
-    h('p', { class: 'muted' }, 'Registre o dia em que você começou a usar um novo botijão para acompanhar a duração.'),
-    h('div', { class: 'actions' }, button('Iniciar ciclo', 'primary', () => handlers?.onOpenSheet({ kind: 'start' }))),
-  );
-}
-
-function homeView(screen: Screen): HTMLElement {
-  const root = h('div', { class: 'view' });
-  root.append(screen.openCycle === null ? emptyCycleCard() : openCycleCard(screen));
-  root.append(forecastCard(screen.forecast, false));
-
-  if (screen.stats.kind === 'ok') {
-    const typical = screen.stats.cards[0];
-    root.append(h('div', { class: 'kpis' },
-      h('div', { class: 'kpi' }, h('span', { class: 'muted' }, 'Duração típica (mediana)'), h('strong', null, typical?.value ?? '—')),
-      h('div', { class: 'kpi' }, h('span', { class: 'muted' }, 'Ciclos encerrados'), h('strong', null, String(screen.closedCount)))));
-  }
-
-  const recent = h('section', { class: 'card', 'aria-labelledby': 'recent-title' }, h('h2', { class: 'section-title', id: 'recent-title' }, 'Últimos ciclos'));
-  if (screen.historyRows.length === 0) {
-    recent.append(h('p', { class: 'muted' }, screen.emptyHistoryText));
-  } else {
-    const list = h('ul', { class: 'recent-list' });
-    for (const row of screen.historyRows.slice(0, 3)) {
-      list.append(h('li', null, h('span', null, `${row.startText} → ${row.endText}`), h('strong', null, row.durationText)));
+  for (const b of document.querySelectorAll<HTMLButtonElement>('#app button, #sheet-root button')) {
+    if (busy) {
+      b.dataset['wasDisabled'] = b.disabled ? '1' : '0';
+      b.disabled = true;
+    } else if (b.dataset['wasDisabled'] !== undefined) {
+      b.disabled = b.dataset['wasDisabled'] === '1';
+      delete b.dataset['wasDisabled'];
     }
-    recent.append(list, button('Ver histórico completo', 'link', () => handlers?.onTab('history')));
   }
-  root.append(recent);
-  return root;
 }
 
-function historyView(screen: Screen, ui: UiState): HTMLElement {
-  const root = h('div', { class: 'view' });
-  root.append(h('h2', { class: 'page-title', id: 'page-title' }, 'Histórico'));
-  if (screen.openCycle !== null) {
-    const open = screen.openCycle;
-    const label = `ciclo em andamento desde ${open.startText}`;
-    root.append(h('section', { class: 'card card-open', 'aria-label': 'Ciclo em andamento' },
-      h('span', { class: 'badge' }, 'Em andamento'),
-      h('p', { class: 'history-dates' }, `Desde ${open.startText}`),
-      open.daysValue === null ? null : h('strong', { class: 'history-duration' }, `${open.daysValue} ${open.daysUnit}`),
-      h('div', { class: 'actions' },
-        button('Editar', 'secondary', () => handlers?.onOpenSheet({ kind: 'edit', id: open.id }), `Editar ${label}`),
-        button('Excluir', 'danger-outline', () => handlers?.onOpenSheet({ kind: 'delete', id: open.id }), `Excluir ${label}`))));
-  }
-  if (screen.historyRows.length === 0) {
-    root.append(h('section', { class: 'card empty' }, h('p', { class: 'hero-empty-text' }, screen.emptyHistoryText),
-      h('p', { class: 'muted' }, 'Quando você encerrar um ciclo, ele aparece aqui com a duração em dias.'),
-      screen.openCycle === null ? h('div', { class: 'actions' }, button('Iniciar ciclo', 'primary', () => handlers?.onOpenSheet({ kind: 'start' }))) : null));
-    return root;
-  }
-  const select = h('select', { id: 'sort-select' });
-  for (const key of Object.keys(SORT_LABELS) as HistorySort[]) {
-    const option = h('option', { value: key }, SORT_LABELS[key]);
-    if (key === ui.sort) option.selected = true;
-    select.append(option);
-  }
-  select.addEventListener('change', () => handlers?.onSort(select.value as HistorySort));
-  root.append(h('div', { class: 'toolbar' },
-    h('p', { class: 'muted', id: 'history-count' }, `${screen.closedCount} ${screen.closedCount === 1 ? 'ciclo encerrado' : 'ciclos encerrados'}`),
-    h('label', { class: 'sort', for: 'sort-select' }, h('span', null, 'Ordenar'), select)));
-  const list = h('ol', { class: 'history-list', id: 'history-list' });
-  for (const row of sortRows(screen.historyRows, ui.sort)) list.append(historyItem(row));
-  root.append(list);
-  return root;
+// ---------- plataforma: aparencia, area de transferencia, arquivo, abertura ----------
+export interface Appearance {
+  readonly theme: UiState['theme'];
+  readonly animations: boolean;
+  readonly locale: Locale;
 }
 
-function statsView(stats: StatsView): HTMLElement {
-  const root = h('div', { class: 'view' }, h('h2', { class: 'page-title', id: 'page-title' }, 'Estatísticas'));
-  if (stats.kind === 'empty') {
-    root.append(h('section', { class: 'card empty' }, h('p', { class: 'hero-empty-text' }, 'Sem dados ainda'), h('p', { class: 'muted' }, stats.message)));
-    return root;
-  }
-  const grid = h('dl', { class: 'stat-grid' });
-  for (const c of stats.cards) grid.append(h('div', { class: 'stat' }, h('dt', null, c.label), h('dd', null, c.value)));
-  root.append(h('section', { class: 'card', 'aria-label': 'Resumo das durações' }, grid, h('p', { class: 'muted' }, stats.basisLine)));
-
-  const chart = h('section', { class: 'card', 'aria-labelledby': 'chart-title' }, h('h2', { class: 'section-title', id: 'chart-title' }, 'Duração de cada ciclo'));
-  const bars = h('ul', { class: 'bars' });
-  for (const b of stats.bars) {
-    const fill = h('span', { class: 'bar-fill' });
-    fill.style.width = `${b.widthPct}%`;
-    const tick = h('span', { class: 'median-tick', 'aria-hidden': 'true' });
-    tick.style.left = `${stats.medianPct}%`;
-    bars.append(h('li', { class: 'bar-row', 'data-id': b.id },
-      h('span', { class: 'bar-label' }, b.label),
-      h('span', { class: 'bar-track' }, fill, tick),
-      h('span', { class: 'bar-value' }, b.valueText)));
-  }
-  chart.append(bars, h('p', { class: 'muted chart-legend' }, h('span', { class: 'legend-dot', 'aria-hidden': 'true' }), stats.medianLabel));
-  root.append(chart);
-  if (stats.caution !== null) root.append(h('p', { class: 'banner banner-info' }, stats.caution));
-  return root;
+export function applyAppearance(a: Appearance): void {
+  const root = document.documentElement;
+  if (a.theme === 'system') delete root.dataset['theme']; else root.dataset['theme'] = a.theme;
+  root.dataset['motion'] = a.animations ? 'on' : 'off';
+  root.lang = a.locale;
 }
 
-function forecastView(screen: Screen): HTMLElement {
-  return h('div', { class: 'view' }, h('h2', { class: 'page-title', id: 'page-title' }, 'Previsão'), forecastCard(screen.forecast, true));
+/** Tenta copiar para a area de transferencia; em falha, tenta o metodo antigo. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard !== undefined) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // cai no metodo alternativo
+  }
+  const box = document.getElementById('export-text');
+  if (box instanceof HTMLTextAreaElement) {
+    box.focus({ preventScroll: true });
+    box.select();
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
-function renderTabs(ui: UiState): void {
+/** Baixa um arquivo de texto (navegador). No app Android depende de plugin: ver `canDownload`. */
+export function downloadText(filename: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = h('a', { href: url, download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Abertura: cristal ornamental com a marca. Sem animacao, some de imediato. Resolve quando termina. */
+export function runSplash(m: Messages, animate: boolean): Promise<void> {
+  const splash = document.getElementById('splash');
+  if (splash === null) return Promise.resolve();
+  if (!animate) { splash.remove(); return Promise.resolve(); }
+  splash.replaceChildren(
+    crystalOrnate('crystal crystal-o splash-crystal'),
+    h('p', { class: 'wordmark splash-wordmark' }, 'Gas', h('em', null, 'Track')),
+    h('p', { class: 'tagline' }, m.app.tagline));
+  splash.hidden = false;
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      splash.classList.add('leaving');
+      window.setTimeout(() => { splash.remove(); resolve(); }, 380);
+    }, 1100);
+  });
+}
+
+// ---------- estrutura fixa ----------
+function renderBrand(m: Messages): void {
+  const brand = el('brand');
+  if (!brandDrawn) {
+    brandDrawn = true;
+    brand.replaceChildren(crystalSmall('crystal crystal-s brand-crystal'), h('span', { class: 'wordmark' }, 'Gas', h('em', null, 'Track')));
+  }
+  brand.setAttribute('aria-label', m.app.name);
+}
+
+function renderTabs(ui: UiState, m: Messages): void {
   const nav = el('tabs');
+  nav.setAttribute('aria-label', m.nav.label);
   nav.replaceChildren();
   for (const t of TABS) {
     const active = t.id === ui.tab;
-    const b = h('button', { type: 'button', class: active ? 'tab active' : 'tab', 'aria-current': active ? 'page' : undefined },
-      icon(t.icon), h('span', null, t.label));
+    const b = h('button', { type: 'button', class: active ? 'tab active' : 'tab', 'data-tab': t.id, 'aria-current': active ? 'page' : undefined },
+      icon(t.icon, 22), h('span', null, m.nav[t.id]));
     b.addEventListener('click', () => handlers?.onTab(t.id));
     nav.append(b);
   }
 }
 
+function renderThemeButton(ui: UiState, m: Messages): void {
+  const label = m.theme[ui.theme];
+  const b = el('theme-button');
+  b.setAttribute('aria-label', m.theme.toggle(label));
+  b.setAttribute('title', m.theme.changed(label));
+  b.replaceChildren(icon(THEME_ICON[ui.theme], 22));
+}
+
 // ---------- paineis (bottom sheets) ----------
-function dateField(id: string, label: string, value: string): [HTMLElement, HTMLInputElement] {
-  const input = h('input', { id, type: 'date', required: true });
-  input.value = value;
-  return [h('div', { class: 'field' }, h('label', { for: id }, label), input), input];
-}
-
-function sheetContent(sheet: Exclude<Sheet, null>, screen: Screen): { title: string; body: HTMLElement; focus: () => void } | null {
-  const cancel = () => button('Cancelar', 'secondary', () => handlers?.onCloseSheet());
-  switch (sheet.kind) {
-    case 'start': {
-      const [field, input] = dateField('sheet-date', 'Data de início', screen.defaultStartDate);
-      const form = h('form', { class: 'sheet-form' }, field, h('div', { class: 'actions' }, h('button', { type: 'submit', class: 'primary' }, 'Iniciar ciclo'), cancel()));
-      form.addEventListener('submit', (e) => { e.preventDefault(); handlers?.onStart(input.value); });
-      return { title: 'Iniciar ciclo', body: h('div', null, h('p', { class: 'muted' }, 'Informe o dia em que o novo botijão começou a ser usado.'), form), focus: () => input.focus() };
-    }
-    case 'finish': {
-      const [field, input] = dateField('sheet-date', 'Data de encerramento', screen.defaultEndDate);
-      const form = h('form', { class: 'sheet-form' }, field, h('div', { class: 'actions' }, h('button', { type: 'submit', class: 'primary' }, 'Encerrar ciclo'), cancel()));
-      form.addEventListener('submit', (e) => { e.preventDefault(); handlers?.onFinish(input.value); });
-      return { title: 'Encerrar ciclo', body: h('div', null, h('p', { class: 'muted' }, 'Informe o dia em que o gás acabou.'), form), focus: () => input.focus() };
-    }
-    case 'edit': {
-      const isOpen = screen.openCycle?.id === sheet.id;
-      const row = screen.historyRows.find((r) => r.id === sheet.id);
-      if (!isOpen && row === undefined) return null;
-      const [startField, startInput] = dateField('edit-start', 'Início', isOpen ? (screen.openCycle?.startDate ?? '') : (row?.startDate ?? ''));
-      const [endField, endInput] = isOpen ? [null, null] : dateField('edit-end', 'Fim', row?.endDate ?? '');
-      const form = h('form', { class: 'sheet-form' }, startField, endField, h('div', { class: 'actions' }, h('button', { type: 'submit', class: 'primary' }, 'Salvar'), cancel()));
-      form.addEventListener('submit', (e) => { e.preventDefault(); handlers?.onSaveEdit(sheet.id, startInput.value, endInput === null ? undefined : endInput.value); });
-      return { title: 'Editar ciclo', body: form, focus: () => startInput.focus() };
-    }
-    case 'delete': {
-      const isOpen = screen.openCycle?.id === sheet.id;
-      const row = screen.historyRows.find((r) => r.id === sheet.id);
-      if (!isOpen && row === undefined) return null;
-      const what = isOpen ? `o ciclo em andamento desde ${screen.openCycle?.startText ?? ''}` : `o ciclo de ${row?.startText ?? ''} a ${row?.endText ?? ''}`;
-      const cancelButton = cancel();
-      const body = h('div', null,
-        h('p', null, `Excluir ${what}? Esta ação não pode ser desfeita.`),
-        h('div', { class: 'actions' }, button('Confirmar exclusão', 'danger', () => handlers?.onConfirmDelete(sheet.id)), cancelButton));
-      return { title: 'Excluir ciclo?', body, focus: () => cancelButton.focus() };
-    }
-  }
-}
-
 function sheetKey(sheet: Sheet): string | null {
   return sheet === null ? null : JSON.stringify(sheet);
 }
@@ -421,7 +192,7 @@ function sheetKey(sheet: Sheet): string | null {
 function trapFocus(root: HTMLElement, e: KeyboardEvent): void {
   if (e.key === 'Escape') { e.preventDefault(); handlers?.onCloseSheet(); return; }
   if (e.key !== 'Tab') return;
-  const items = [...root.querySelectorAll<HTMLElement>('button, input, select, [href]')].filter((n) => !n.hasAttribute('disabled'));
+  const items = [...root.querySelectorAll<HTMLElement>('button, input, select, textarea, [href]')].filter((n) => !n.hasAttribute('disabled'));
   const first = items[0];
   const last = items[items.length - 1];
   if (first === undefined || last === undefined) return;
@@ -429,7 +200,7 @@ function trapFocus(root: HTMLElement, e: KeyboardEvent): void {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
-function renderSheet(ui: UiState, screen: Screen): void {
+function renderSheet(ctx: ViewContext, ui: UiState, screen: Screen, extras: Extras): void {
   const root = el('sheet-root');
   const key = sheetKey(ui.sheet);
   if (key === renderedSheetKey) return; // mantem o painel (e o que o usuario digitou) como esta
@@ -437,7 +208,7 @@ function renderSheet(ui: UiState, screen: Screen): void {
   renderedSheetKey = key;
   root.replaceChildren();
   const inert = ['topbar', 'view', 'tabs'];
-  const content = ui.sheet === null ? null : sheetContent(ui.sheet, screen);
+  const content = ui.sheet === null ? null : sheetContent(ctx, ui.sheet, screen, extras);
   document.body.classList.toggle('sheet-open', content !== null);
   for (const id of inert) {
     const n = el(id);
@@ -465,28 +236,33 @@ function renderSheet(ui: UiState, screen: Screen): void {
 }
 
 // ---------- entrada principal ----------
-export function render(screen: Screen, ui: UiState): void {
-  document.documentElement.dataset['theme'] = ui.theme === 'system' ? '' : ui.theme;
-  if (ui.theme === 'system') delete document.documentElement.dataset['theme'];
-  const themeButton = el('theme-button');
-  themeButton.setAttribute('aria-label', `Tema: ${THEME_LABELS[ui.theme]}. Tocar para alternar.`);
-  themeButton.setAttribute('title', `Tema: ${THEME_LABELS[ui.theme]}`);
-  themeButton.replaceChildren(icon('M12 3a9 9 0 1 0 0 18V3z'));
+export function render(screen: Screen, ui: UiState, extras: Extras): void {
+  if (handlers === null) throw new Error('render antes de bind');
+  const m = messagesFor(ui.locale);
+  const ctx: ViewContext = { m, locale: ui.locale, handlers };
+  renderBrand(m);
+  renderThemeButton(ui, m);
+  renderTabs(ui, m);
 
-  renderTabs(ui);
   const view = el('view');
   const scrollTop = window.scrollY;
+  let content: HTMLElement;
   switch (ui.tab) {
-    case 'home': view.replaceChildren(homeView(screen)); break;
-    case 'history': view.replaceChildren(historyView(screen, ui)); break;
-    case 'stats': view.replaceChildren(statsView(screen.stats)); break;
-    case 'forecast': view.replaceChildren(forecastView(screen)); break;
+    case 'home': content = homeView(ctx, screen); break;
+    case 'history': content = historyView(ctx, screen, ui); break;
+    case 'stats': content = statsView(ctx, screen); break;
+    case 'forecast': content = forecastView(ctx, screen); break;
+    case 'settings': content = settingsView(ctx, ui, extras); break;
   }
+  const viewKey = `${ui.tab}:${ui.settingsPage ?? ''}`;
+  if (viewKey !== lastViewKey) content.classList.add('enter');
+  lastViewKey = viewKey;
+  view.replaceChildren(content);
   window.scrollTo(0, scrollTop);
-  renderSheet(ui, screen);
+  renderSheet(ctx, ui, screen, extras);
 }
 
-/** Troca de aba: volta ao topo e leva o foco ao conteudo. */
+/** Troca de aba ou sub-tela: volta ao topo e leva o foco ao conteudo. */
 export function focusView(): void {
   window.scrollTo(0, 0);
   el('view').focus({ preventScroll: true });
