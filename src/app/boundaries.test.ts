@@ -38,7 +38,7 @@ test('previsao exibida vem de presentNextChange (screen.ts) e nao de outro lugar
     const code = strip(readFileSync(join(dir, f), 'utf8'));
     if (f !== 'screen.ts') assert.doesNotMatch(code, /presentNextChange|presentForecast/, f);
   }
-  assert.match(strip(readFileSync(join(dir, 'screen.ts'), 'utf8')), /presentNextChange\(history\.cycles\)/);
+  assert.match(strip(readFileSync(join(dir, 'screen.ts'), 'utf8')), /presentNextChange\(history\.cycles(, locale)?\)/);
 });
 
 test('dominio e ui/forecast nao importam a camada app', () => {

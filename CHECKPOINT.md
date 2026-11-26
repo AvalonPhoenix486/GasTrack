@@ -1,5 +1,26 @@
 # CHECKPOINT
 
+## CHECKPOINT R11 - Redesign visual completo e Configuracoes (2026-11-26)
+
+Base: `6bdd94e`. Trabalho local, **sem push** (aguarda autorizacao do responsavel).
+
+### Implementado e testado
+- Identidade: paleta vinho `#490038` / verde `#16E000` / laranja `#FF4500` / vermelho `#940000` com tons derivados; temas claro e grafite (sem preto absoluto); cristal em tres versoes (pequena, intermediaria, ornamental) em `www/crystal.svg` e `src/app/view/brand.ts`; abertura com cristal ornamental (desligavel).
+- Telas: Inicio, Historico (filtro por ano, ordenacao, detalhes expansiveis), Estatisticas, Previsao, Configuracoes com 7 sub-telas (Aparencia, Idioma, Ciclo, Lembretes, Dados, Privacidade, Sobre). Navegacao inferior com 5 abas; botao Voltar do aparelho fecha painel e sub-tela.
+- "Registrar troca": encerra o ciclo e inicia o proximo na mesma data (uma unica gravacao).
+- Idiomas pt-BR e en (inclui a apresentacao da previsao e as datas); estrutura para novos idiomas em `src/ui/locale.ts`.
+- Lembretes dentro do app (alerta ao se aproximar da janela estimada); exportar/importar/apagar dados com confirmacao.
+- Previsao e estatisticas continuam vindo do dominio; progresso e "proxima troca em N dias" vem de `src/ui/timeline`.
+
+### Validacao
+- `npm test`: 458 testes (457 ok, 0 falhas, 1 ignorado); `test:tz` ok em 8 fusos; `typecheck` ok; `build:web` ok; `test:e2e`: 26 verificacoes ok (inclui 360x640 e 320x568, claro e escuro).
+
+### Nao feito / depende de etapa externa
+- Notificacoes do sistema e horarios: exigem `@capacitor/local-notifications` e permissao POST_NOTIFICATIONS (sem acesso ao registro npm neste ambiente). A tela informa que nao estao disponiveis.
+- Icone de lancamento e splash nativos do Android: dependem da geracao do projeto `android/` no CI.
+- Build Android/APK: nao executado aqui (sem SDK); so pelo workflow do GitHub.
+- Sem "Economizados" nem "Eventos" do mockup (nao ha dado no dominio); sem preferencia de cor de destaque.
+
 ## CHECKPOINT R7 - Continuidade e reconciliacao documental (2026-10-10)
 
 Etapa so de auditoria e documentacao. Nenhum codigo de produto foi alterado, nenhuma dependencia instalada, nenhum commit/tag/branch criado. Alteracoes ficam no diretorio de trabalho (nao commitadas).

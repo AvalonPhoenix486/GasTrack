@@ -64,4 +64,34 @@ export class GasTrackController {
     this.current = next;
     return next;
   }
+
+  /**
+   * Registra a troca do botijao: encerra o ciclo em andamento em `date` e inicia o proximo na
+   * mesma data. As duas mudancas valem juntas: uma unica gravacao (tudo ou nada).
+   */
+  async registerChange(date: string): Promise<CycleHistory> {
+    const open = getOpenCycle(this.current);
+    if (open === undefined) throw new CycleStateError('nao ha ciclo em andamento');
+    const closed = closeInHistory(this.current, open.id, date);
+    const next = addToHistory(closed, createCycle({ id: this.newId(), startDate: date }));
+    await this.repository.save(listCycles(next));
+    this.current = next;
+    return next;
+  }
+
+  /** Substitui todo o historico (importacao). Os ciclos passam pela validacao do dominio; tudo ou nada. */
+  async replaceAll(cycles: unknown): Promise<CycleHistory> {
+    const next = historyFromCycles(cycles);
+    await this.repository.save(listCycles(next));
+    this.current = next;
+    return next;
+  }
+
+  /** Apaga todos os ciclos deste aparelho. */
+  async clearAll(): Promise<CycleHistory> {
+    const next = emptyHistory();
+    await this.repository.save(listCycles(next));
+    this.current = next;
+    return next;
+  }
 }
