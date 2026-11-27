@@ -90,10 +90,21 @@ for f in sorted(res.rglob('*.png')):
     if len(best) < len(before): f.write_bytes(best)
     rows.append((str(f.relative_to(res)), im.width, im.height, len(before), min(len(best), len(before)), mae))
 
+# imagens da interface (www/): so refaz o Deflate dos bytes originais, com os mesmos pixels e chunks (perfil de cor incluso)
+web_before = web_after = 0
+if ENGINE == 'zopfli':
+    for f in sorted(Path('www').rglob('*.png')):
+        data = f.read_bytes(); new = rezopfli(data)
+        web_before += len(data); web_after += min(len(data), len(new))
+        same = Image.open(io.BytesIO(data)).convert('RGBA').tobytes() == Image.open(io.BytesIO(new)).convert('RGBA').tobytes()
+        if not same: sys.exit(f'ERRO: {f} mudou de pixels na recompressao')
+        if len(new) < len(data): f.write_bytes(new)
+
 splash = [r for r in rows if r[0].endswith('/splash.png')]
 print(f'motor de compressao: {ENGINE}; PNGs processados: {len(rows)}; splash: {len(splash)}')
 print(f'splash: {sum(r[3] for r in splash) / 1024:.0f} KiB -> {sum(r[4] for r in splash) / 1024:.0f} KiB')
 print(f'todos os PNGs: {sum(r[3] for r in rows) / 1024:.0f} KiB -> {sum(r[4] for r in rows) / 1024:.0f} KiB')
+if web_before: print(f'imagens da interface (www/, sem perda): {web_before / 1024:.0f} KiB -> {web_after / 1024:.0f} KiB')
 print('maiores depois da otimizacao (dimensao final):')
 for r in sorted(rows, key=lambda r: -r[4])[:8]:
     print(f'  {r[0]:48s} {r[1]}x{r[2]:<5} {r[3] / 1024:7.0f} -> {r[4] / 1024:6.0f} KiB  erro medio {r[5]:.2f}')
