@@ -9,7 +9,8 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib import instancer
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageFilter
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -84,6 +85,14 @@ def splash(c0, c1, c2, glow_alpha):
                + centered(bold, [('Gas', TEXT_LIGHT), ('Track', GREEN_TEXT)], 260, cx, 1700)
                + rule + centered(italic, [(tagline(), TEXT_MUTED)], 104, cx, 2085))
 
+def denoise(im, radius=4, tol=3):
+    """O Chromium aplica dither (+-1 nivel) nos degradês: ruido que o PNG nao comprime.
+    Troca so os pixels de fundo (diferem <= tol da media local) pela media; texto e bordas ficam intactos."""
+    a = np.asarray(im).astype(int)
+    b = np.asarray(im.filter(ImageFilter.BoxBlur(radius))).astype(int)
+    keep = (np.abs(a - b).max(axis=2) <= tol)[..., None]
+    return Image.fromarray(np.where(keep, b, a).astype('uint8'))
+
 def main():
     SRC.mkdir(parents=True, exist_ok=True); OUT.mkdir(parents=True, exist_ok=True)
     files = {
@@ -109,7 +118,9 @@ def main():
             page.screenshot(path=str(OUT / f'{name}.png'), omit_background=name in transparent)
             page.close()
             png = OUT / f'{name}.png'
-            Image.open(png).save(png, optimize=True, compress_level=9)   # recompressao sem perda
+            im = Image.open(png)
+            if name not in transparent: im = denoise(im.convert('RGB'))
+            im.save(png, optimize=True, compress_level=9)
             print(name, side)
         b.close()
 

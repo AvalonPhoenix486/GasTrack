@@ -34,10 +34,12 @@ test('a splash usa a frase institucional do app (pt-BR) e o nome GasTrack', () =
 test('workflow e package.json: etapas apontam para arquivos existentes e rodam antes do Gradle', () => {
   const wf = read('.github/workflows/android-apk.yml');
   for (const f of new Set(wf.match(/scripts\/[\w.-]+/g))) assert.ok(existsSync(`${root}${f}`), f);
-  const order = ['npx cap add android', 'npm run assets:android', 'verify-android-resources', 'npx cap sync android', './gradlew assembleDebug', 'verify-apk-icons'].map((s) => wf.indexOf(s));
+  const order = ['npx cap add android', 'npm run assets:android', 'verify-android-resources', 'npx cap sync android', './gradlew assembleDebug', 'verify-apk-icons', 'report-apk-size'].map((s) => wf.indexOf(s));
   assert.ok(order.every((i, k) => i > (order[k - 1] ?? -1)), `ordem das etapas: ${order}`);
   const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string>; devDependencies: Record<string, string> };
   assert.ok(pkg.devDependencies['@capacitor/assets']);
   assert.match(pkg.scripts['assets:android'] ?? '', /--assetPath assets\/native/);
+  assert.match(pkg.scripts['assets:android'] ?? '', /android-native-resources\.mjs && python3 scripts\/optimize-android-pngs\.py$/); // otimiza depois de gerar tudo
+  assert.match(wf, /pillow==/);
   for (const f of new Set((pkg.scripts['assets:android'] ?? '').match(/scripts\/[\w.-]+/g))) assert.ok(existsSync(`${root}${f}`), f);
 });

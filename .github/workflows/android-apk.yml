@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install Pillow (image optimization and APK checks)
+        run: python3 -m pip install --quiet pillow==12.3.0 numpy
+
       - name: Build web app
         run: npm run build:web
 
@@ -38,7 +41,7 @@ jobs:
         run: npx cap add android
 
       - name: Generate app icon and splash screen
-        # Fontes: assets/native/*.png (mestres) -> mipmap/drawable do projeto android/; depois splash do Android 12+
+        # Fontes: assets/native/*.png (mestres) -> mipmap/drawable do projeto android/; splash do Android 12+; otimizacao dos PNGs
         run: npm run assets:android
 
       - name: Verify native resources
@@ -55,8 +58,10 @@ jobs:
         run: |
           AAPT2="$(ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/*/aapt2 | sort -V | tail -1)"
           echo "aapt2: $AAPT2"
-          python3 -m pip install --quiet pillow
           python3 scripts/verify-apk-icons.py android/app/build/outputs/apk/debug/app-debug.apk "$AAPT2"
+
+      - name: Report APK size
+        run: python3 scripts/report-apk-size.py android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
