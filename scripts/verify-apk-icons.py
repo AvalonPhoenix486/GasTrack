@@ -32,7 +32,7 @@ if len(legacy) < 5: errors.append('mipmap/ic_launcher deveria ter PNGs em 5 dens
 for f in legacy:
     im = image(f)
     print('  ', f, im.size, [im.getpixel((round(im.width * k), im.height // 2)) for k in (.04, .08, .15, .25)])
-    px = im.getpixel((round(im.width * .15), im.height // 2))  # a 15% da borda esquerda: fundo, fora do botijao
+    px = im.getpixel((round(im.width * .25), im.height // 2))  # a 25% da borda: fundo vinho, fora do botijao (a margem e transparente)
     if px[3] < 250 or not near(px[:3], (0x45, 0x05, 0x37), 60): errors.append(f'{f}: pixel {px} nao e o vinho do GasTrack (icone padrao do Capacitor?)')
 # fundo adaptavel
 bgs = files_of('mipmap/ic_launcher_background') or files_of('color/ic_launcher_background')
