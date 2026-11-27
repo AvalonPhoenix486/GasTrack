@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -35,12 +37,26 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Generate app icon and splash screen
+        # Fontes: assets/native/*.png (mestres) -> mipmap/drawable do projeto android/; depois splash do Android 12+
+        run: npm run assets:android
+
+      - name: Verify native resources
+        run: node scripts/verify-android-resources.mjs
+
       - name: Sync Capacitor
         run: npx cap sync android
 
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
+
+      - name: Verify icon and splash inside the APK
+        run: |
+          AAPT2="$(ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/*/aapt2 | sort -V | tail -1)"
+          echo "aapt2: $AAPT2"
+          python3 -m pip install --quiet pillow
+          python3 scripts/verify-apk-icons.py android/app/build/outputs/apk/debug/app-debug.apk "$AAPT2"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

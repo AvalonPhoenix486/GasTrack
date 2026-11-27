@@ -14,7 +14,8 @@
     "build:web": "tsc -p tsconfig.web.json",
     "test:e2e": "npm run build:web && python3 e2e/app.e2e.py",
     "cap:sync": "npm run build:web && cap sync android",
-    "cap:open": "cap open android"
+    "cap:open": "cap open android",
+    "assets:android": "capacitor-assets generate --android --assetPath assets/native --iconBackgroundColor '#490038' --iconBackgroundColorDark '#2d0023' --splashBackgroundColor '#490038' --splashBackgroundColorDark '#1a1020' && node scripts/android-native-resources.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.6.2",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "8.6.2",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@capacitor/assets": "3.0.5"
   }
 }
