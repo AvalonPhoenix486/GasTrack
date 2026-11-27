@@ -19,7 +19,7 @@ BG_MAX_GREEN = 48  # fundo = pixels com G <= 48 (vinho #490038 e ameixa #1a1020 
 MAX_MAE = 1.0      # erro medio maximo (0-255) aceito; acima disso mantem a imagem sem paleta
 
 try:
-    import zopfli
+    import zopfli.zlib
     ENGINE = 'zopfli'
 except ImportError:
     ENGINE = 'zlib'
