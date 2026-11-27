@@ -32,7 +32,10 @@ jobs:
         run: npm install
 
       - name: Install Pillow (image optimization and APK checks)
-        run: python3 -m pip install --quiet pillow==12.3.0 numpy
+        # zopfli e opcional: sem ele o script recomprime com zlib nivel 9 (arquivos um pouco maiores)
+        run: |
+          python3 -m pip install --quiet pillow==12.3.0 numpy
+          python3 -m pip install --quiet zopfli || echo '::warning::zopfli indisponivel; usando zlib'
 
       - name: Build web app
         run: npm run build:web
