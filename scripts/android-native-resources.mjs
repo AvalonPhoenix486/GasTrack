@@ -22,7 +22,7 @@ const m = xml.match(/<style\s+name="AppTheme\.NoActionBarLaunch"\s+parent="([^"]
 if (!m) fail('estilo AppTheme.NoActionBarLaunch nao encontrado em styles.xml');
 if (!/SplashScreen/.test(m[1])) fail(`o tema de abertura usa o pai "${m[1]}", nao o tema de splash do AndroidX`);
 if (!m[0].includes('windowSplashScreenAnimatedIcon')) {
-  const items = '<item name="windowSplashScreenBackground">@color/gastrack_splash_background</item>\n'
+  const items = '    <item name="windowSplashScreenBackground">@color/gastrack_splash_background</item>\n'
     + '        <item name="windowSplashScreenAnimatedIcon">@drawable/gastrack_splash_icon</item>\n    ';
   xml = xml.replace(m[0], m[0].replace(/<\/style>$/, `${items}</style>`));
   writeFileSync(styles, xml);

@@ -33,7 +33,7 @@ for (const f of files.filter((f) => /^values/.test(rel(f)) && f.endsWith('.xml')
 }
 const sources = [join(base, 'AndroidManifest.xml'), ...files.filter((f) => f.endsWith('.xml'))];
 for (const f of sources) {
-  for (const m of readFileSync(f, 'utf8').matchAll(/@(?!android:)(\w+)\/([\w.]+)/g)) {
+  for (const m of readFileSync(f, 'utf8').replace(/<!--[\s\S]*?-->/g, '').matchAll(/@(?!android:)(\w+)\/([\w.]+)/g)) {
     const [, type, name] = m;
     const ok = FILE_TYPES.has(type) ? (stems.get(type)?.has(name) ?? false) : VALUE_TYPES.has(type) ? values.has(`${type}/${name}`) : true;
     if (!ok) errors.push(`referencia sem recurso: @${type}/${name} em ${f.startsWith(res) ? rel(f) : 'AndroidManifest.xml'}`);
