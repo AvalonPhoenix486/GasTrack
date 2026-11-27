@@ -27,7 +27,8 @@ const FILE_TYPES = new Set(['drawable', 'mipmap', 'xml', 'layout']);
 const VALUE_TYPES = new Set(['color', 'string', 'style', 'dimen', 'bool', 'integer']);
 const stems = new Map();   // tipo -> nomes de arquivo
 for (const f of files) { const [dir, ...rest] = rel(f).split('/'); const t = dir.split('-')[0]; if (rest.length) (stems.get(t) ?? stems.set(t, new Set()).get(t)).add(rest.join('/').replace(/\.[^.]+$/, '')); }
-const values = new Set();  // "tipo/nome"
+// colorPrimary/Dark/Accent vem do template/biblioteca Capacitor (o Gradle e o arbitro final)
+const values = new Set(['color/colorPrimary', 'color/colorPrimaryDark', 'color/colorAccent']);  // "tipo/nome"
 for (const f of files.filter((f) => /^values/.test(rel(f)) && f.endsWith('.xml'))) {
   for (const m of readFileSync(f, 'utf8').matchAll(/<(color|string|style|dimen|bool|integer)\b[^>]*\bname="([^"]+)"/g)) values.add(`${m[1]}/${m[2]}`);
 }
