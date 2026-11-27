@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-MAX_SIDE = 1600   # px; o xxhdpi do Capacitor ja e 1600x960
+MAX_SIDE = 1500   # px; o xxhdpi do Capacitor e 1600x960 e o xxxhdpi 1920x1280
 BG_COLORS, CONTENT_COLORS = 160, 96
 BG_MAX_GREEN = 48  # fundo = pixels com G <= 48 (vinho #490038 e ameixa #1a1020 tem G <= 31); o resto e conteudo
 MAX_MAE = 1.0      # erro medio maximo (0-255) aceito; acima disso mantem a imagem sem paleta
