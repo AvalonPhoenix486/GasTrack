@@ -7,19 +7,21 @@ apk, aapt2 = sys.argv[1], sys.argv[2]
 dump = subprocess.run([aapt2, 'dump', 'resources', apk], capture_output=True, text=True, check=True).stdout
 errors = []
 
-def files_of(resource):
-    """Arquivos (res/...) de um recurso, lidos de `aapt2 dump resources`."""
+def lines_of(resource):
+    """Linhas de configuracao de um recurso em `aapt2 dump resources`."""
     out, current = [], False
     for line in dump.splitlines():
         m = re.match(r'\s*resource 0x[0-9a-f]+ (\S+)', line)
         if m: current = m.group(1) == resource
-        elif current:
-            f = re.search(r'\(file\) (\S+)', line)
-            if f: out.append(f.group(1))
+        elif current: out.append(line)
     return out
 
+def files_of(resource):
+    """Arquivos (res/...) de um recurso."""
+    return [f.group(1) for line in lines_of(resource) if (f := re.search(r'\(file\) (\S+)', line))]
+
 z = zipfile.ZipFile(apk)
-def image(path): return Image.open(io.BytesIO(z.read(path))).convert('RGB')
+def image(path): return Image.open(io.BytesIO(z.read(path))).convert('RGBA')
 def near(px, rgb, tol): return all(abs(a - b) <= tol for a, b in zip(px, rgb))
 WINE, PLUM = (0x49, 0x00, 0x38), (0x1A, 0x10, 0x20)
 
@@ -28,8 +30,10 @@ legacy = [f for f in files_of('mipmap/ic_launcher') if f.endswith('.png')]
 print('mipmap/ic_launcher:', legacy)
 if len(legacy) < 5: errors.append('mipmap/ic_launcher deveria ter PNGs em 5 densidades')
 for f in legacy:
-    im = image(f); px = im.getpixel((round(im.width * .08), im.height // 2))
-    if not near(px, (0x45, 0x05, 0x37), 60): errors.append(f'{f}: pixel {px} nao e o vinho do GasTrack (icone padrao do Capacitor?)')
+    im = image(f)
+    print('  ', f, im.size, [im.getpixel((round(im.width * k), im.height // 2)) for k in (.04, .08, .15, .25)])
+    px = im.getpixel((round(im.width * .15), im.height // 2))  # a 15% da borda esquerda: fundo, fora do botijao
+    if px[3] < 250 or not near(px[:3], (0x45, 0x05, 0x37), 60): errors.append(f'{f}: pixel {px} nao e o vinho do GasTrack (icone padrao do Capacitor?)')
 # fundo adaptavel
 bgs = files_of('mipmap/ic_launcher_background') or files_of('color/ic_launcher_background')
 print('fundo adaptavel:', bgs)
@@ -47,7 +51,9 @@ for f in splash:
 # splash do Android 12+
 print('gastrack_splash_icon:', files_of('drawable/gastrack_splash_icon'))
 if not files_of('drawable/gastrack_splash_icon'): errors.append('sem drawable/gastrack_splash_icon')
-if not files_of('color/gastrack_splash_background'): errors.append('sem color/gastrack_splash_background')
+cores = ' '.join(lines_of('color/gastrack_splash_background')).lower()
+print('gastrack_splash_background:', cores.strip())
+if 'ff490038' not in cores and 'ff1a1020' not in cores: errors.append('color/gastrack_splash_background ausente ou com valor diferente do vinho/ameixa')
 # manifesto: icone aponta para os recursos
 badging = subprocess.run([aapt2, 'dump', 'badging', apk], capture_output=True, text=True, check=True).stdout
 print('\n'.join(l for l in badging.splitlines() if l.startswith(('application-label', 'application-icon-640', 'launchable'))))
